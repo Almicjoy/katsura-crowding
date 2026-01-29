@@ -1,9 +1,9 @@
 import React, { useState, useEffect } from "react";
-import { useI18next } from 'gatsby-plugin-react-i18next';
 import { Bar } from 'react-chartjs-2';
 import { Chart as ChartJS, BarController, BarElement, LinearScale, Title, CategoryScale } from 'chart.js';
 
-import ServiceStatus from "./ServiceStatus.js"
+import LiveIcon from "../images/live-icon.svg"
+import ServiceStatus from "./ServiceStatus"
 
 
 ChartJS.register(BarController, BarElement, LinearScale, CategoryScale, Title);
@@ -11,34 +11,42 @@ ChartJS.register(BarController, BarElement, LinearScale, CategoryScale, Title);
 const PopularityChart = ({ location }) => {
   const current = new Date()
   const [selectedOption, setSelectedOption] = useState('');
-	const [hdata, setData] = useState({
-                                "message": null,
-                                "data": {},
-                                "sensor": null,
-                              });
+  const [isLoading, setIsLoading] = useState(true);
+  const [hdata, setData] = useState({
+    "message": null,
+    "data": {},
+    "sensor": null,
+  });
 
   const [popularity, setPopularity] = useState({
-                                        "count": 0,
-                                        "time": `${current.getHours()}:${current.getMinutes()}`,
-                                        "sensor": null,
-                                        "time_to_display": null,
-                                      });
-  
-  const apiURL = "https://katsura-backend.onrender.com";
+    "count": 0,
+    "time": `${current.getHours()}:${current.getMinutes()}`,
+    "sensor": null,
+    "time_to_display": null,
+  });
+
+  const apiURL = "https://api.katsuracampuswifitimes.com";
 
   useEffect(() => {
     console.log("Fetching data...")
+    setIsLoading(true);
     fetch(`${apiURL}/day_average/${location}`)
-     .then(res => res.json())
-     .then(json => setData(json))
-     .catch(error => console.error(error))
+      .then(res => res.json())
+      .then(json => {
+        setData(json);
+        setIsLoading(false);
+      })
+      .catch(error => {
+        console.error(error);
+        setIsLoading(false);
+      })
   }, [location])
-  
+
   useEffect(() => {
     console.log("Counting users...");
     fetch(`${apiURL}/service-level-api/${location}`)
-    .then(res => res.json())
-    .then(json => setPopularity(json))
+      .then(res => res.json())
+      .then(json => setPopularity(json))
   }, [location])
 
 
@@ -46,29 +54,37 @@ const PopularityChart = ({ location }) => {
   console.log("hdata: ", hdata)
   console.log("Popularity: ", popularity)
 
-  if (hdata.message == null) {
+  var displayBarChart;
+  if (isLoading) {
+    displayBarChart = (
+      <div className="flex items-center justify-center py-16">
+        <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-gray-600"></div>
+        <span className="ml-2 text-gray-600">Loading chart data...</span>
+      </div>
+    );
+  } else if (hdata.message == null) {
     displayBarChart = <div></div>
   } else if (hdata.message != 'SUCCESS') {
     displayBarChart = <div>The Cafeteria is closed today!</div>
   } else {
-    const labels = hdata.data.map(function(label) {
+    const labels = hdata.data.map(function (label) {
       label = label.time;
-      label = label.slice(0,5);
+      label = label.slice(0, 5);
       label = convertTimeToString(label)
       label = label.split(' ')
       return label;
     });
 
-    const bins = hdata.data.map(function(label) {
+    const bins = hdata.data.map(function (label) {
       label = label.time;
-      label = label.slice(0,5);
+      label = label.slice(0, 5);
       return label;
     });
 
     console.log("Labels: ", labels)
     console.log("bins: ", bins)
-    
-    const data = hdata.data.map(function(e) {
+
+    const data = hdata.data.map(function (e) {
       return e.count;
     });
 
@@ -86,7 +102,7 @@ const PopularityChart = ({ location }) => {
 
     var hist_background_colors = Array(labels.length).fill("rgba(0,32,96,1");
     var live_background_colors = Array(labels.length).fill("rgba(0,176,240,1");
-    
+
     if (liveData[i] > data[i]) {
       live_background_colors = Array(labels.length).fill("rgba(0,176,240,0.5");
     }
@@ -102,7 +118,6 @@ const PopularityChart = ({ location }) => {
           barPercentage: 1,
           backgroundColor: live_background_colors,
           borderWidth: 1,
-          borderRadius: 5,
         },
         {
           label: 'Historical Average',
@@ -110,7 +125,6 @@ const PopularityChart = ({ location }) => {
           barPercentage: 1,
           backgroundColor: hist_background_colors,
           borderWidth: 1,
-          borderRadius: 5,
         },
       ]
     };
@@ -118,56 +132,66 @@ const PopularityChart = ({ location }) => {
     const config = {
       scales: {
         x: {
-          grid: {display: false},
+          grid: { display: false },
           stacked: true,
-          ticks: {color: 'black',
-                  fontStyle: "bold",
-                },
+          ticks: {
+            color: 'black',
+            fontStyle: "bold",
+          },
         },
         y: {
-          grid: {display: false},
+          grid: { display: false },
           beginAtZero: true,
           display: false,
         }
       }
     };
-  
+
     var displayBarChart;
     if (labels) {
       displayBarChart = <Bar
-                          type='bar'
-                          data={chartData}
-                          options={config}
-                        />
+        type='bar'
+        data={chartData}
+        options={config}
+      />
     } else {
-      displayBarChart= <Bar />;
+      displayBarChart = <Bar />;
     }
 
     var service_status;
-    if ((popularity.count != null) && (i != -1)) {
-      service_status = <ServiceStatus count={liveData[i]} average_count={data[i]} apiURL={apiURL} location={location}/>
+    if ((popularity.count == null) || (i == -1)) {
+      service_status = " "
     } else {
-      service_status = ""
+      service_status = <ServiceStatus count={liveData[i]} average_count={data[i]} apiURL={apiURL} location={location} />
     }
   }
 
-  const { t } = useI18next();
-  const language = t('CURRENT_LOCALE')
-  
-  const time = new Date();
-  var dateToDisplay = time.toLocaleDateString(language, { weekday:"long", year:"numeric", month:"long", day:"numeric"})
+  if (popularity.time_to_display == null) {
+    const time = new Date();
+    var dateToDisplay = time.toLocaleDateString('en-us', { weekday: "long", year: "numeric", month: "long", day: "numeric" })
+  } else {
+    var dateToDisplay = popularity.time_to_display
+  }
 
   return (
     <div>
       <div className="grid gap-2 p-4 bg-gray-100 rounded-lg">
-        <h2 className="text-md text-gray-500 font-medium" style={{color:'black'}}>{dateToDisplay}</h2>
+        <h2 className="text-md text-gray-500 font-medium" style={{ color: 'black' }}>{dateToDisplay}</h2>
         <div>
-          {displayBarChart}          
+          {displayBarChart}
         </div>
-        {service_status}
+        <div className="flex gap-1 items-center">
+          <img
+            className="inline h-4"
+            src={LiveIcon}
+            alt="Live"
+          />
+          {/*<span className="text-sm text-gray-800 font medium">{"Busy message goes here"}</span>*/}
+          <span className="text-sm text-gray-800 font medium">{service_status}</span>
+        </div>
       </div>
     </div>
-	);
+  );
 }
 
 export default PopularityChart
@@ -179,7 +203,7 @@ function convertTimeToString(time) {
   var ampm = hours >= 12 ? 'PM' : 'AM';
   hours = hours % 12;
   hours = hours ? hours : 12; // the hour '0' should be '12'
-  minutes = minutes < 10 ? '0'+minutes : minutes;
+  minutes = minutes < 10 ? '0' + minutes : minutes;
   var strTime = hours + ':' + minutes + ' ' + ampm;
   return strTime;
 }

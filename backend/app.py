@@ -10,6 +10,7 @@ import datetime
 import pytz
 from datetime import timedelta
 from apscheduler.schedulers.background import BackgroundScheduler
+from concurrent.futures import ThreadPoolExecutor, as_completed
 
 app = Flask(__name__)
 CORS(app)
@@ -40,12 +41,12 @@ for file in files:
     historical_averages[file] = df
     # print(df)
 
-# Keep a dictionary of the days of the week to be used in getting the 
+# Keep a dictionary of the days of the week to be used in getting the
 # corresponding averages
 week_days = {0:"Monday", 1:"Tuesday", 2:"Wednesday", 3:"Thursday", 4:"Friday", 5:"Saturday", 6:"Sunday"}
 
 # This variable will store the preloaded live data
-LIVE_DATA = [pd.DataFrame({})]
+LIVE_DATA = [pd.DataFrame({}), pd.DataFrame({})]
 TIME = [datetime.datetime.now(jst)]
 SENSOR = "AMPM18-KJ016"
 
@@ -68,15 +69,16 @@ def get_day_average(sensor):
         data = {}
 
     TIME[0] = time
-    
+
     return {"message":message, "data":data, "sensor": sensor}
+
 
 
 def get_live_data(time):
     timeCode = time.strftime("%H") + time.strftime("%M")
     dataURL = 'http://153.127.3.13/katsura/csv/5min/' + timeCode + '.csv'
     print("Data URL: ", dataURL)
-    response = requests.get(dataURL, auth=HTTPBasicAuth('katsura', 'katsura'), stream=True, timeout=45)
+    response = requests.get(dataURL, auth=HTTPBasicAuth('katsura', 'katsura'), stream=True)
     df = pd.read_csv(response.raw)
     df['TIMESTAMP'] = pd.to_datetime(df['TIMESTAMP'])
     df['TIMESTAMP'] = df['TIMESTAMP'].dt.tz_localize("Asia/Tokyo")
@@ -85,20 +87,48 @@ def get_live_data(time):
 
 
 def get_aggregated_data(live_data, aggregate=60, time=TIME):
-    time = time[0]
-    time = roundTime(time, roundTo=5)
-    print("Time: ", time)
+    time1 = time[0]
+    time1 = roundTime(time1, roundTo=5)
+    print("Time: ", time1)
 
-    df = pd.DataFrame({})
-    for i in range(12):
-        print("Fetching data...")
-        df_temp = get_live_data(time)
-        df = pd.concat([df_temp, df])
-        time = time - timedelta(minutes=5)
+    # Generate time points for 15-min data (3 requests) and 60-min data (12 requests)
+    times_15min = [time1 - timedelta(minutes=5*i) for i in range(3)]
+    times_60min = [time1 - timedelta(minutes=5*i) for i in range(12)]
+
+    # Fetch all data in parallel using ThreadPoolExecutor
+    print("Fetching data in parallel...")
+    with ThreadPoolExecutor(max_workers=8) as executor:
+        # Submit all requests
+        futures_15min = {executor.submit(get_live_data, t): t for t in times_15min}
+        futures_60min = {executor.submit(get_live_data, t): t for t in times_60min}
+        
+        # Collect results for 15-min data
+        dfs_15min = []
+        for future in as_completed(futures_15min):
+            try:
+                dfs_15min.append(future.result())
+            except Exception as e:
+                print(f"Error fetching 15-min data: {e}")
+        
+        # Collect results for 60-min data
+        dfs_60min = []
+        for future in as_completed(futures_60min):
+            try:
+                dfs_60min.append(future.result())
+            except Exception as e:
+                print(f"Error fetching 60-min data: {e}")
+
+    # Concatenate results
+    if dfs_15min:
+        df_15 = pd.concat(dfs_15min).reset_index(drop=True)
+        live_data[0] = df_15.copy()
     
-    live_data[0] = df.reset_index(drop=True)
+    if dfs_60min:
+        df_60 = pd.concat(dfs_60min).reset_index(drop=True)
+        live_data[1] = df_60.copy()
 
-    return df
+    print("Parallel data fetch complete")
+    return live_data[1] if dfs_60min else pd.DataFrame({})
 
 
 def count_users(df, sensor):
@@ -109,17 +139,10 @@ def count_users(df, sensor):
     return (df,count)
 
 
-def test_scheduler(live_data=LIVE_DATA):
-    print("This is the current live_data\n", live_data[0])
-    print("bleble", live_data)
-    return 0
 
-
-test_scheduler(LIVE_DATA)
 get_aggregated_data(LIVE_DATA)
 print(LIVE_DATA)
-sched.add_job(test_scheduler, 'interval', seconds=50, args=[LIVE_DATA])
-sched.add_job(get_aggregated_data,'interval', minutes=2, args=[LIVE_DATA])
+sched.add_job(get_aggregated_data,'interval', minutes=1, args=[LIVE_DATA])
 
 
 CAFE_SENSORS = ["AMPM18-KJ010", "AMPM18-KJ016", "AMPM18-KJ017"]
@@ -129,32 +152,32 @@ CAFE_SENSORS = ["AMPM18-KJ010", "AMPM18-KJ016", "AMPM18-KJ017"]
 def service_level(sensor, live_data=LIVE_DATA, time=TIME):
     time = TIME[0]
 
-    df = live_data[0]
-
     if sensor in CAFE_SENSORS:
-        start = roundTime(time, roundTo=5)   
-        end = start - timedelta(minutes=15)
-        df = df[df['TIMESTAMP'] >= end]
+        df = live_data[0].copy()
+        # start = roundTime(time, roundTo=5)
+        # end = start - timedelta(minutes=15)
+        # df = df[df['TIMESTAMP'] >= end]
         time = roundTime(time, roundTo=15)
     else:
+        df = live_data[1].copy()
         time = roundTime(time, roundTo=60)
 
     df,count = count_users(df, sensor=sensor)
     print("Count: ", count)
-    
+
     time_to_display = time.strftime('%A, %B %d, %Y')
     time = "{:02d}:{:02d}".format(time.hour, time.minute)
     print("Returned time: ", time)
 
     # return df.to_html()
-    response = {"sensor":sensor, 
+    response = {"sensor":sensor,
                 "time": time,
                 "count":count,
                 "time_to_display": time_to_display}
 
     return response
 
-sched.start()
 
 if __name__ == "__main__":
-    app.run(debug=True)
+    sched.start()
+    app.run(port=5001)

@@ -16,26 +16,8 @@ module.exports = {
           DEFAULT: "#00205B",
         },
       },
-      typography: {
-        DEFAULT: {
-          css: {
-            color: '#333',
-            a: {
-              backgroundImage: 'linear-gradient(90deg, #66E1FF, #66E1FF)',
-              backgroundRepeat: 'no-repeat',
-              backgroundSize: '100% .25em',
-              backgroundPosition: '0 80%',
-              textDecoration: 'none',
-              '&:hover': {
-                backgroundSize: '100% 100%',
-              },
-            },
-          },
-        },
-      },
     },
   },
   plugins: [
-    require('@tailwindcss/typography'),
   ],
 }

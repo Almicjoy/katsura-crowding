@@ -1,6 +1,7 @@
 import * as React from "react"
+import Seo from "../components/seo"
+
 import App from '../components/App';
-import { graphql } from 'gatsby';
 
 const IndexPage = () => (
   <App />
@@ -11,19 +12,6 @@ const IndexPage = () => (
  *
  * See: https://www.gatsbyjs.com/docs/reference/built-in-components/gatsby-head/
  */
+export const Head = () => <Seo title="Home" />
 
 export default IndexPage
-
-export const query = graphql`
-  query ($language: String!) {
-    locales: allLocale(filter: {language: {eq: $language}}) {
-      edges {
-        node {
-          ns
-          data
-          language
-        }
-      }
-    }
-  }
-`;
