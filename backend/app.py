@@ -36,7 +36,7 @@ files = os.listdir("historical_averages")
 for file in files:
     print("File: ", file)
     df = pd.read_csv("historical_averages/"+file)
-    df['Time'] = pd.to_datetime(df['Time'])
+    df['Time'] = pd.to_datetime(df['Time'], format='mixed')
     df['Time'] = df['Time'].apply(lambda x: x.time())
     historical_averages[file] = df
     # print(df)
@@ -76,7 +76,7 @@ def get_day_average(sensor):
 
 def get_live_data(time):
     timeCode = time.strftime("%H") + time.strftime("%M")
-    dataURL = 'http://153.127.3.13/katsura/csv/5min/' + timeCode + '.csv'
+    dataURL = 'https://ampdev6.jriss.jp/katsura/csv/5min/' + timeCode + '.csv'
     print("Data URL: ", dataURL)
     response = requests.get(dataURL, auth=HTTPBasicAuth('katsura', 'katsura'), stream=True)
     df = pd.read_csv(response.raw)

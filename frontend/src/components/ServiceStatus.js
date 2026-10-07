@@ -1,8 +1,7 @@
-import React, { useState, useEffect } from "react";
+import { useState } from "react";
 
 
 function ServiceStatus({count, average_count, apiURL, location}) {
-	const [status, setStatus] = useState();
 
   var message;
   var percent_diff = (count - average_count)/average_count

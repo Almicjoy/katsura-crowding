@@ -8,9 +8,10 @@ import ServiceStatus from "./ServiceStatus"
 
 ChartJS.register(BarController, BarElement, LinearScale, CategoryScale, Title);
 
+const apiURL = process.env.GATSBY_API_URL;
+
 const PopularityChart = ({ location }) => {
   const current = new Date()
-  const [selectedOption, setSelectedOption] = useState('');
   const [isLoading, setIsLoading] = useState(true);
   const [hdata, setData] = useState({
     "message": null,
@@ -25,7 +26,6 @@ const PopularityChart = ({ location }) => {
     "time_to_display": null,
   });
 
-  const apiURL = "https://api.katsuracampuswifitimes.com";
 
   useEffect(() => {
     console.log("Fetching data...")
@@ -64,7 +64,7 @@ const PopularityChart = ({ location }) => {
     );
   } else if (hdata.message == null) {
     displayBarChart = <div></div>
-  } else if (hdata.message != 'SUCCESS') {
+  } else if (hdata.message !== 'SUCCESS') {
     displayBarChart = <div>The Cafeteria is closed today!</div>
   } else {
     const labels = hdata.data.map(function (label) {
@@ -147,7 +147,6 @@ const PopularityChart = ({ location }) => {
       }
     };
 
-    var displayBarChart;
     if (labels) {
       displayBarChart = <Bar
         type='bar'
@@ -159,18 +158,19 @@ const PopularityChart = ({ location }) => {
     }
 
     var service_status;
-    if ((popularity.count == null) || (i == -1)) {
+    if ((popularity.count === null) || (i === -1)) {
       service_status = " "
     } else {
       service_status = <ServiceStatus count={liveData[i]} average_count={data[i]} apiURL={apiURL} location={location} />
     }
   }
 
-  if (popularity.time_to_display == null) {
+  var dateToDisplay;
+  if (popularity.time_to_display === null) {
     const time = new Date();
-    var dateToDisplay = time.toLocaleDateString('en-us', { weekday: "long", year: "numeric", month: "long", day: "numeric" })
+    dateToDisplay = time.toLocaleDateString('en-us', { weekday: "long", year: "numeric", month: "long", day: "numeric" })
   } else {
-    var dateToDisplay = popularity.time_to_display
+    dateToDisplay = popularity.time_to_display
   }
 
   return (
