@@ -1,21 +1,2 @@
-# Core web framework
-Flask>=2.3.0
-Flask-Cors>=4.0.0
-gunicorn>=21.0.0
-
-# Scheduling
-APScheduler>=3.10.0
-
-# Data processing
-numpy>=1.26.0
-pandas>=2.0.0
-
-# HTTP requests
-requests>=2.31.0
-
-# Timezone handling
-pytz>=2023.3
-
-# Other dependencies (will be installed automatically)
-# certifi, charset-normalizer, click, idna, itsdangerous, 
-# Jinja2, MarkupSafe, python-dateutil, six, tzdata, urllib3, Werkzeug
+requests
+tzdata

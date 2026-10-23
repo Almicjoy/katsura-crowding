@@ -11,6 +11,9 @@ import pytz
 from datetime import timedelta
 from apscheduler.schedulers.background import BackgroundScheduler
 from concurrent.futures import ThreadPoolExecutor, as_completed
+from dotenv import load_dotenv
+
+load_dotenv()
 
 app = Flask(__name__)
 CORS(app)
@@ -147,7 +150,7 @@ sched.add_job(get_aggregated_data,'interval', minutes=1, args=[LIVE_DATA])
 
 CAFE_SENSORS = ["AMPM18-KJ010", "AMPM18-KJ016", "AMPM18-KJ017"]
 
-@app.route("/service-level-api", defaults={'sensor':SENSOR})
+@app.route("/service-level-api")
 @app.route("/service-level-api/<sensor>")
 def service_level(sensor, live_data=LIVE_DATA, time=TIME):
     time = TIME[0]
