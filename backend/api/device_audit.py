@@ -111,7 +111,7 @@ class handler(BaseHTTPRequestHandler):
             today = datetime.now(JST).date()
             try:
                 day = date.fromisoformat((q.get("date") or [(today - timedelta(days=1)).isoformat()])[0])
-                hours = float((q.get("hours") or ["6"])[0])
+                hours = float((q.get("hours") or ["4"])[0])
                 gap = float((q.get("gap") or ["30"])[0])
             except ValueError:
                 return self._send(400, {"error": "date must be YYYY-MM-DD; hours and gap must be numbers"})

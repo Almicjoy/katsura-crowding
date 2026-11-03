@@ -790,3 +790,29 @@ body:has(dialog[open]) {
   }
 }
 
+.manual-comparison {
+  display: flex;
+  align-items: end;
+  flex-wrap: wrap;
+  gap: 12px;
+  margin: 16px 0;
+}
+
+.manual-comparison label {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  font-size: 13px;
+  font-weight: 600;
+}
+
+.manual-comparison input {
+  min-width: 170px;
+}
+
+.manual-comparison .muted,
+.manual-comparison .err {
+  font-size: 12px;
+  padding-bottom: 8px;
+}
+

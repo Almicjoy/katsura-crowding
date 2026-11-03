@@ -76,27 +76,45 @@ class handler(BaseHTTPRequestHandler):
             if resolution not in ("hour", "5min"):
                 raise BadRequest("resolution must be 'hour' or '5min'")
             try:
-                days_back = min(max(int(param(q, "days", "365")), 28), 400)
+                days_back = min(max(int(param(q, "days", "365")), 28), 2000)
             except ValueError:
                 raise BadRequest("days must be an integer")
 
             today = datetime.now(JST).date()
 
             # Weekday and day type come from `date` (preferred) or explicit params
+            ref_info = None
+
             if param(q, "date"):
                 try:
                     ref = date.fromisoformat(param(q, "date"))
                 except ValueError:
                     raise BadRequest("date must be YYYY-MM-DD")
-                info = lookup(ref)
-                if info["phase"] == "unknown":
-                    raise BadRequest("That date is outside the academic calendar, so its day type is unknown")
-                weekday = ref.weekday()
-                kind = "class" if info["is_class_day"] else "non_class"
+
+                ref_info = lookup(ref)
+
+                if ref_info["phase"] == "unknown":
+                    raise BadRequest(
+                        "That date is outside the academic calendar, so its day type is unknown"
+                    )
+
+                # For rescheduled classes, use the official scheduled weekday.
+                # Otherwise, use the actual weekday of the reference date.
+                if ref_info["session"] is not None:
+                    weekday = DAY_NAMES.index(ref_info["schedule_weekday"])
+                else:
+                    weekday = ref.weekday()
+
+                kind = "class" if ref_info["is_class_day"] else "non_class"
+
             else:
-                weekday = parse_weekday(param(q, "weekday", str(today.weekday())))
+                weekday = parse_weekday(
+                    param(q, "weekday", str(today.weekday()))
+                )
                 kind = "class" if weekday in CLASS_WEEKDAYS else "non_class"
+
             kind = param(q, "kind", kind)
+
             if kind not in ("class", "non_class"):
                 raise BadRequest("kind must be 'class' or 'non_class'")
 
@@ -122,7 +140,7 @@ class handler(BaseHTTPRequestHandler):
                 days_out.append({
                     "date": d.isoformat(),
                     "semester": info["semester"],
-                    "week": info["week"],
+                    "session": info["session"],
                     "phase": info["phase"],
                     "reason": info["reason"],
                     "values": series_for(states[d]["counts"], resolution),
@@ -158,12 +176,40 @@ class handler(BaseHTTPRequestHandler):
             x = ([f"{h:02d}:00" for h in range(24)] if resolution == "hour"
                  else [f"{i // 12:02d}:{(i % 12) * 5:02d}" for i in range(288)])
 
+            detail = None
+
+            if ref_info:
+                if not ref_info["is_class_day"]:
+                    # The value from the academic calendar's no_class dictionary
+                    detail = ref_info["reason"]
+
+                if ref_info["events"]:
+                    # The event name or description from the academic calendar
+                    event_detail = ", ".join(ref_info["events"])
+
+                    if detail:
+                        detail = f"{detail}; Event: {event_detail}"
+                    else:
+                        detail = f"Event: {event_detail}"
+
             return self._send(200, {
                 "sensor": sensor,
                 "weekday": DAY_NAMES[weekday],
                 "kind": kind,
                 "label": label,
                 "resolution": resolution,
+
+                "reference_date": ref_info["date"] if ref_info else None,
+                "session": ref_info["session"] if ref_info else None,
+                "schedule_weekday": ref_info["schedule_weekday"] if ref_info else None,
+                "rescheduled": ref_info["rescheduled"] if ref_info else False,
+                "phase": ref_info["phase"] if ref_info else None,
+                "semester": ref_info["semester"] if ref_info else None,
+                "is_class_day": ref_info["is_class_day"] if ref_info else None,
+                "detail": detail,
+                "reason": ref_info["reason"] if ref_info else None,
+                "events": ref_info["events"] if ref_info else [],
+
                 "x": x,
                 "days": days_out,
                 "stats": stats,

@@ -96,7 +96,7 @@ export default function WeekdayProfile({ sensorId, date, from, to, overlay, refr
     const force0 = refresh !== seen.current; // Refresh button pressed
     seen.current = refresh;
     const get = (kind, force) =>
-      cached(`${PROFILE_ENDPOINT}?sensor=${sensorId}&weekday=${weekday}&kind=${kind}&days=730`, {
+      cached(`${PROFILE_ENDPOINT}?sensor=${sensorId}&weekday=${weekday}&kind=${kind}&days=2000`, {
         date: "2000-01-01",
         maxAge: 3600 * 1000,
         force,
@@ -399,7 +399,7 @@ export default function WeekdayProfile({ sensorId, date, from, to, overlay, refr
             ))}
           </select>
         </label>
-        <label>
+        {/* <label>
           Contrast
           <input
             type="range"
@@ -410,7 +410,7 @@ export default function WeekdayProfile({ sensorId, date, from, to, overlay, refr
             onChange={(e) => setContrast(+e.target.value)}
             style={{ padding: 0 }}
           />
-        </label>
+        </label> */}
         <label style={{ flexDirection: "row", alignItems: "center", gap: 8 }}>
           <input
             type="checkbox"

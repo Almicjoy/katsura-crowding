@@ -1,3 +1,4 @@
+
 import json
 import os
 import sys
@@ -20,17 +21,24 @@ def with_description(d):
 def one_year_back(d):
     try:
         return d.replace(year=d.year - 1)
-    except ValueError:                       # Feb 29
+    except ValueError:  # February 29
         return d.replace(year=d.year - 1, day=28)
+
+
+def date_key(info):
+    return info.get("date")
 
 
 class handler(BaseHTTPRequestHandler):
     def _send(self, status, body, max_age=300):
-        payload = json.dumps(body).encode()
+        payload = json.dumps(body).encode("utf-8")
         self.send_response(status)
         self.send_header("Content-Type", "application/json")
         self.send_header("Access-Control-Allow-Origin", "*")
-        self.send_header("Cache-Control", f"s-maxage={max_age}, stale-while-revalidate=60")
+        self.send_header(
+            "Cache-Control",
+            f"s-maxage={max_age}, stale-while-revalidate=60",
+        )
         self.end_headers()
         self.wfile.write(payload)
 
@@ -45,28 +53,75 @@ class handler(BaseHTTPRequestHandler):
         try:
             q = parse_qs(urlparse(self.path).query)
             today = datetime.now(JST).date()
-            explicit = bool((q.get("date") or [""])[0])
-            try:
-                day = date.fromisoformat((q.get("date") or [today.isoformat()])[0])
-            except ValueError:
-                return self._send(400, {"error": "date must be YYYY-MM-DD"})
 
-            matches = []
-            for e in equivalents(day):
-                matches.append({**e, "in_future": date.fromisoformat(e["date"]) > today})
+            raw_date = (q.get("date") or [""])[0]
+            explicit = bool(raw_date)
+
+            try:
+                day = date.fromisoformat(
+                    raw_date or today.isoformat()
+                )
+            except ValueError:
+                return self._send(
+                    400,
+                    {"error": "date must be YYYY-MM-DD"},
+                )
+
+            # Primary comparisons: matched by _academic_calendar.py.
+            matched = equivalents(day)
+
+            primary_equivalents = []
+            equivalent_dates = set()
+
+            for match in matched:
+                match_date = match.get("date")
+                if not match_date or match_date in equivalent_dates:
+                    continue
+
+                equivalent_dates.add(match_date)
+                primary_equivalents.append({
+                    **match,
+                    "in_future": date.fromisoformat(match_date) > today,
+                })
+
+            # Last-year comparisons are fallbacks, not primary matches.
+            last_year_date = with_description(one_year_back(day))
+            last_year_weekday = with_description(
+                day - timedelta(days=364)
+            )
+
+            if date_key(last_year_date) in equivalent_dates:
+                last_year_date["already_in_equivalents"] = True
+            else:
+                last_year_date["already_in_equivalents"] = False
+
+            if date_key(last_year_weekday) in equivalent_dates:
+                last_year_weekday["already_in_equivalents"] = True
+            else:
+                last_year_weekday["already_in_equivalents"] = False
 
             body = {
                 **with_description(day),
-                # same week # and weekday in other semesters of the same term
-                "equivalents": matches,
+                "equivalents": primary_equivalents,
                 "last_year": {
-                    "same_date": with_description(one_year_back(day)),
-                    # 364 days back = same weekday, closest calendar date
-                    "same_weekday": with_description(day - timedelta(days=364)),
+                    "same_date": last_year_date,
+                    "same_weekday": last_year_weekday,
                 },
             }
-            return self._send(200, body, max_age=3600 if explicit else 300)
+
+            return self._send(
+                200,
+                body,
+                max_age=3600 if explicit else 300,
+            )
+
         except Exception as e:
             import traceback
             traceback.print_exc()
-            return self._send(500, {"error": type(e).__name__, "detail": str(e)})
+            return self._send(
+                500,
+                {
+                    "error": type(e).__name__,
+                    "detail": str(e),
+                },
+            )

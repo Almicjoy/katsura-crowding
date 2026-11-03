@@ -62,7 +62,18 @@ function useDay(sensor, date, refresh) {
           if (e.date !== date && e.date <= today() && !cands.some((c) => c.date === e.date))
             cands.push({ date: e.date, label, kind: dayKind(e) });
         };
-        info.equivalents.forEach((e) => add(e, `${e.semester}, week ${e.week}`));
+        info.equivalents.forEach((e) =>
+          add(
+            e,
+            `${e.semester}${
+              e.session != null &&
+              e.session !== "null" &&
+              e.weekday
+                ? `, ${ordinal(e.session)} ${e.weekday}`
+                : ""
+            }`
+          )
+        );
         add(info.last_year.same_weekday, "Last year, same weekday");
         add(info.last_year.same_date, "Last year, same date");
         const list = cands.slice(0, 5).map((c, i) => ({ ...c, color: COLORS[i % COLORS.length] }));
@@ -89,6 +100,18 @@ function useDay(sensor, date, refresh) {
     };
   }, [sensor, date, refresh]);
   return s;
+}
+
+function ordinal(n) {
+  const num = Number(n);
+  if (num % 100 >= 11 && num % 100 <= 13) return `${num}th`;
+
+  switch (num % 10) {
+    case 1: return `${num}st`;
+    case 2: return `${num}nd`;
+    case 3: return `${num}rd`;
+    default: return `${num}th`;
+  }
 }
 
 function Chart({ range, series, rain, sel, onSel, empty, tip, mainLabel }) {
@@ -342,6 +365,10 @@ export default function App() {
   const [shown, setShown] = useState({});
   const [refresh, setRefresh] = useState(0);
   const [aggregation, setAggregation] = useState(5);
+  const [comparisonDate, setComparisonDate] = useState("");
+  const [comparisonData, setComparisonData] = useState(null);
+  const [comparisonLoading, setComparisonLoading] = useState(false);
+  const [comparisonError, setComparisonError] = useState("");
   const sensor = SENSORS.find((s) => s.id === sensorId);
   const {
     data,
@@ -352,6 +379,47 @@ export default function App() {
     loading,
     refreshing,
   } = useDay(sensorId, date, refresh);
+
+  useEffect(() => {
+    let cancelled = false;
+
+    setComparisonData(null);
+    setComparisonError("");
+
+    if (!comparisonDate || comparisonDate === date) {
+      setComparisonLoading(false);
+      return;
+    }
+
+    setComparisonLoading(true);
+
+    cached(dayUrl(sensorId, comparisonDate), {
+      date: comparisonDate,
+      maxAge: null,
+    })
+      .then(({ body }) => {
+        if (!cancelled) {
+          setComparisonData(body);
+          setComparisonLoading(false);
+        }
+      })
+      .catch((error) => {
+        if (!cancelled) {
+          setComparisonData(null);
+          setComparisonError(
+            error.status === 404
+              ? "No data is available for the selected comparison date."
+              : `Could not load comparison data: ${error.message}`
+          );
+          setComparisonLoading(false);
+        }
+      });
+
+    return () => {
+      cancelled = true;
+    };
+  }, [sensorId, date, comparisonDate]);
+
   const busy = loading || refreshing || comps.some((c) => c.pending);
   useEffect(() => setSelHour(null), [sensorId, date]);
 
@@ -368,14 +436,30 @@ export default function App() {
   const hour = range.includes(selHour) ? selHour : (last ?? lo);
   const series = [
     ...comps
-      .map((c, i) => isOn(c, i) && { key: c.date, color: c.color, values: pick(c.data) })
+      .map((c, i) => isOn(c, i) && {
+        key: c.date,
+        color: c.color,
+        values: pick(c.data),
+      })
       .filter(Boolean),
+
+    ...(comparisonData && comparisonDate !== date
+      ? [{
+          key: "user-comparison",
+          color: "#16a085",
+          values: pick(comparisonData),
+        }]
+      : []),
+
     {
       key: "main",
       main: true,
       color: "var(--main)",
       values: mainVals,
-      partial: range.map((h) => data?.hours?.[h]?.average_5min != null && !data.hours[h].complete),
+      partial: range.map((h) =>
+        data?.hours?.[h]?.average_5min != null &&
+        !data.hours[h].complete
+      ),
     },
   ];
   const rain = range.map((h) => data?.hours?.[h]?.weather?.precipitation_mm ?? null);
@@ -405,6 +489,19 @@ export default function App() {
                 {dl(c.date)}: {fmt(aggregateHour(c.data?.hours?.[h], aggregation))} devices
               </div>
             ),
+        )}
+        {comparisonData && comparisonDate !== date && (
+          <div>
+            <i
+              className="dot"
+              style={{
+                background: "#16a085",
+              }}
+            />
+            {dl(comparisonDate)}:{" "}
+            {fmt(aggregateHour(comparisonData?.hours?.[h], aggregation))}
+            {" "}devices
+          </div>
         )}
         {wt && (
           <div className="muted">
@@ -446,13 +543,25 @@ export default function App() {
               {kind}
             </span>
           )}
-          {info
-            ? info.semester
-              ? `${info.semester}${info.week ? `, week ${info.week}` : ""}`
-              : "Outside the academic calendar"
-            : "Loading…"}
+        {info
+          ? info.semester
+            ? `Semester ${info.semester}${
+                info.session != null &&
+                info.session !== "null" &&
+                info.weekday
+                  ? `, ${ordinal(info.session)} ${info.weekday}`
+                  : ""
+              }`
+            : "Outside the academic calendar"
+          : "Loading…"}
+          {info?.detail && (
+            <div className="page-subheader">
+              <p className="sub">{info.detail}</p>
+            </div>
+          )}
         </p>
       </div>
+
 
       <div className="controls">
         <label className="wide">
@@ -573,6 +682,52 @@ export default function App() {
                   tip={tip}
                   mainLabel={`Selected day (${wd(date)}, ${dl(date).split(", ").slice(1).join(", ")})`}
                 />
+                <div className="manual-comparison">
+                  <label>
+                    Compare with another date
+                    <input
+                      type="date"
+                      value={comparisonDate}
+                      max={today()}
+                      onChange={(e) => {
+                        setComparisonDate(e.target.value);
+                      }}
+                    />
+                  </label>
+
+                  {comparisonDate && (
+                    <button
+                      className="btn"
+                      onClick={() => {
+                        setComparisonDate("");
+                        setComparisonData(null);
+                        setComparisonError("");
+                      }}
+                    >
+                      Clear comparison
+                    </button>
+                  )}
+
+                  {comparisonLoading && (
+                    <span className="muted">Loading comparison…</span>
+                  )}
+
+                  {comparisonError && (
+                    <span className="err">{comparisonError}</span>
+                  )}
+
+                  {comparisonData && comparisonDate !== date && (
+                    <span className="muted">
+                      Comparing {dl(comparisonDate)} with {dl(date)}
+                    </span>
+                  )}
+
+                  {comparisonDate === date && comparisonDate && (
+                    <span className="muted">
+                      Choose a different date from the main day.
+                    </span>
+                  )}
+                </div>
                 <div className="chips" aria-label="Comparison days">
                   {comps.map((c, i) => (
                     <button

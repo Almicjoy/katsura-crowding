@@ -45,8 +45,8 @@ def describe(info):
     if not info["semester"]:
         return head + "outside the academic calendar"
     bits = [info["semester"]]
-    if info["week"]:
-        bits.append(f"week {info['week']}")
+    if info["session"]:
+        bits.append(f"session {info['session']}")
     bits.append(PHASE_LABEL[info["phase"]])
     if info["phase"] == "classes":
         bits.append("class day" if info["is_class_day"] else f"no classes ({info['reason']})")
