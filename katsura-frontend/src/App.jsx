@@ -2,7 +2,7 @@ import { useEffect, useRef, useState } from "react";
 import { CAMPUS, SENSORS } from "./config.js";
 
 import WeekdayProfile from "./WeekdayProfile.jsx";
-import LiveMap from "./Livemap.jsx";
+import LiveMap from "./LiveMap.jsx";
 import Survey from "./Survey.jsx";
 
 import {
