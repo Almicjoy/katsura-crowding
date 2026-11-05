@@ -3,7 +3,10 @@ import { CAMPUS, SENSORS } from "./config.js";
 
 import WeekdayProfile from "./WeekdayProfile.jsx";
 import LiveMap from "./LiveMap.jsx";
+import DayChart from "./DayChart.jsx";
 import Survey from "./Survey.jsx";
+import WeatherCrowding from "./WeatherCrowding.jsx";
+import Dashboard from "./Dashboard.jsx";
 
 import {
   COLORS,
@@ -24,13 +27,13 @@ import {
   aggregateHour,
 } from "./lib.js";
 
-function useDay(sensor, date, refresh) {
+function useDay(sensor, date, dayRefresh) {
   const [s, set] = useState({ loading: true, comps: [] });
-  const seen = useRef(refresh);
+  const seen = useRef(dayRefresh);
   useEffect(() => {
     let dead = false;
-    const force = refresh !== seen.current; // true only when the Refresh button was pressed
-    seen.current = refresh;
+    const force = dayRefresh !== seen.current; // true only when the Refresh button was pressed
+    seen.current = dayRefresh;
     const patch = (fn) => !dead && set(fn);
     const ageFor = (d) => (d === today() ? TODAY_MAX_AGE_MS : null);
 
@@ -98,7 +101,7 @@ function useDay(sensor, date, refresh) {
     return () => {
       dead = true;
     };
-  }, [sensor, date, refresh]);
+  }, [sensor, date, dayRefresh]);
   return s;
 }
 
@@ -114,247 +117,6 @@ function ordinal(n) {
   }
 }
 
-function Chart({ range, series, rain, sel, onSel, empty, tip, mainLabel }) {
-  const box = useRef(null);
-  const [w, setW] = useState(640);
-  const [hov, setHov] = useState(null);
-  useEffect(() => {
-    const ro = new ResizeObserver(([e]) => setW(Math.max(280, e.contentRect.width)));
-    ro.observe(box.current);
-    return () => ro.disconnect();
-  }, []);
-  const H = 300,
-    m = { l: 38, r: 10, t: 10, b: 26 };
-  const iw = w - m.l - m.r,
-    ih = H - m.t - m.b,
-    n = range.length;
-  const max = niceMax(Math.max(1, ...series.flatMap((s) => s.values).filter((v) => v != null)));
-  const x = (i) => m.l + (n === 1 ? iw / 2 : (i / (n - 1)) * iw);
-  const y = (v) => m.t + ih - (v / max) * ih;
-  const rainMax = Math.max(0, ...rain.filter((v) => v != null));
-  const rmax = Math.max(2, rainMax);
-  const step = Math.ceil(n / (w < 480 ? 5 : 10));
-  const pick = (e) => {
-    const r = box.current.getBoundingClientRect();
-    const i = Math.round(((e.clientX - r.left - m.l) / iw) * (n - 1));
-    const h = range[Math.min(n - 1, Math.max(0, i || 0))];
-    onSel(h);
-    setHov(h);
-  };
-  const si = sel - range[0];
-  const hi = hov != null && range.includes(hov) ? x(hov - range[0]) : null;
-  return (
-    <div>
-      <div ref={box} className="chartbox">
-        <svg
-          viewBox={`0 0 ${w} ${H}`}
-          height={H}
-          onPointerMove={pick}
-          onPointerDown={pick}
-          onPointerLeave={(e) => e.pointerType === "mouse" && setHov(null)}
-          role="img"
-          aria-label="Average devices per 5 minutes by hour"
-        >
-          {[0, 0.25, 0.5, 0.75, 1].map((t) => (
-            <g key={t}>
-              <line x1={m.l} x2={w - m.r} y1={y(max * t)} y2={y(max * t)} stroke="var(--line)" />
-              <text className="axis" x={m.l - 6} y={y(max * t) + 4} textAnchor="end">
-                {Math.round(max * t)}
-              </text>
-            </g>
-          ))}
-          {rain.map(
-            (v, i) =>
-              v > 0 && (
-                <rect
-                  key={i}
-                  x={x(i) - Math.max(3, (iw / n) * 0.3)}
-                  width={Math.max(6, (iw / n) * 0.6)}
-                  y={m.t + ih - (v / rmax) * 50}
-                  height={(v / rmax) * 50}
-                  fill="var(--rain)"
-                  opacity=".65"
-                />
-              ),
-          )}
-          {range.map(
-            (h, i) =>
-              i % step === 0 && (
-                <text key={h} className="axis" x={x(i)} y={H - 8} textAnchor="middle">
-                  {hl(h)}
-                </text>
-              ),
-          )}
-          {si >= 0 && si < n && (
-            <line
-              x1={x(si)}
-              x2={x(si)}
-              y1={m.t}
-              y2={m.t + ih}
-              stroke="var(--mute)"
-              strokeDasharray="3 3"
-            />
-          )}
-          {series.map((s) => (
-            <g key={s.key}>
-              <path
-                d={toPath(s.values, x, y)}
-                fill="none"
-                stroke={s.color}
-                strokeWidth={s.main ? 3 : 2}
-                strokeDasharray={s.main ? undefined : "5 4"}
-                strokeLinejoin="round"
-              />
-              {s.main &&
-                s.values.map(
-                  (v, i) =>
-                    v != null && (
-                      <circle
-                        key={i}
-                        cx={x(i)}
-                        cy={y(v)}
-                        r={s.partial[i] ? 4.5 : 3}
-                        fill={s.partial[i] ? "var(--card)" : s.color}
-                        stroke={s.color}
-                        strokeWidth="2"
-                      />
-                    ),
-                )}
-            </g>
-          ))}
-          {empty && (
-            <text x={w / 2} y={H / 2} textAnchor="middle" className="axis">
-              No data yet for these hours
-            </text>
-          )}
-        </svg>
-        {hi != null && (
-          <div
-            className="tip"
-            style={{
-              left: hi,
-              transform: hi > w * 0.55 ? "translateX(calc(-100% - 12px))" : "translateX(12px)",
-            }}
-          >
-            {tip(hov)}
-          </div>
-        )}
-      </div>
-      <div className="legend">
-        <span>
-          <i className="sw" />
-          {mainLabel}
-        </span>
-        <span>
-          <i className="sw dash" />
-          Comparison days (toggle below)
-        </span>
-        <span>
-          <i className="sw rainbox" />
-          Rain, mm per hour{rainMax > 0 ? ` (tallest bar ${rainMax.toFixed(1)} mm)` : " (none)"}
-        </span>
-        <span>
-          <i className="sw hollow" />
-          Hour still in progress
-        </span>
-      </div>
-    </div>
-  );
-}
-
-function Detail({ hour, date, day, comps, aggregation }) {
-  const h = day?.hours?.[hour];
-  const w = h?.weather;
-  const rawSlots = h?.slot_counts ?? [];
-  const slots = aggregateSlots(rawSlots, aggregation);
-  const cols = { gridTemplateColumns: `repeat(${slots.length}, 1fr)` };
-  const vals = slots.filter((v) => v != null);
-  const average = aggregateHour(h, aggregation);
-  const mx = Math.max(1, ...vals);
-  return (
-    <div className="card">
-      <h2>
-        {hl(hour)} to {hl(hour + 1)}
-      </h2>
-      <p className="muted" style={{ margin: "2px 0 0" }}>
-        {dl(date, true)}
-      </p>
-      {average == null ? (
-        <p className="muted">No data yet for this hour.</p>
-      ) : (
-        <>
-          <div className="stats">
-            <div>
-              <b>{fmt(average)}</b>
-              <span className="muted">avg devices per 5 minutes</span>
-            </div>
-            <div>
-              <b>{Math.max(0, ...vals)}</b>
-              <span className="muted">highest {aggregation}-minute block</span>
-            </div>
-          </div>
-          {!h.complete && (
-            <p className="muted">
-              Hour in progress: {h.slots_final} finished 5-minute period(s) so far.
-            </p>
-          )}
-          <div className="ticks" style={cols}>
-            {slots.map((v, i) => (
-              <span key={i}>{v ?? "–"}</span>
-            ))}
-          </div>
-          <div className="bars" style={cols} aria-label={`Devices in each ${aggregation}-minute block`}>
-            {slots.map((v, i) => (
-              <div
-                key={i}
-                className={v == null ? "none" : ""}
-                style={{ height: v == null ? 2 : `${(v / mx) * 100}%` }}
-                title={`${tl(hour, i * aggregation)}: ${v ?? "no data"}`}
-              />
-            ))}
-          </div>
-          <div className={`slotlabels ${slots.length <= 6 ? "wide" : ""}`} style={cols}>
-            {slots.map((v, i) => (
-              <span key={i}>{tl(hour, i * aggregation)}</span>
-            ))}
-          </div>
-          <p className="muted">
-            Each bar is the average number of devices per 5 minutes across the{" "}
-            {aggregation}-minute block starting at the time shown.
-          </p>
-        </>
-      )}
-      {comps.length > 0 && <h2 className="sec">Same hour on comparison days</h2>}
-      {comps.map((c) => {
-        const v = aggregateHour(c.data?.hours?.[hour], aggregation);
-        const cur = average;
-        const pct = cur != null && v > 0 ? Math.round(((cur - v) / v) * 100) : null;
-        return (
-          <div className="row" key={c.date}>
-            <span>
-              <i className="dot" style={{ background: c.color }} />
-              {dl(c.date)}
-              {wd(c.date) !== wd(date) && <em className="warn">different weekday</em>}
-            </span>
-            <span>
-              {fmt(v)} devices{pct != null && ` (selected day ${pct >= 0 ? "+" : ""}${pct}%)`}
-            </span>
-          </div>
-        );
-      })}
-      {w && (
-        <>
-          <h2 className="sec">Weather{w.forecast ? " (forecast)" : ""}</h2>
-          <p className="muted" style={{ margin: "4px 0 0" }}>
-            {w.condition}, {fmt(w.temp_c, 1)} °C (feels like {fmt(w.feels_like_c)} °C),{" "}
-            {fmt(w.precipitation_mm, 1)} mm rain, wind {fmt(w.wind_kmh)} km/h, humidity{" "}
-            {fmt(w.humidity_pct)}%, cloud cover {fmt(w.cloud_cover_pct)}%
-          </p>
-        </>
-      )}
-    </div>
-  );
-}
 
 export default function App() {
   const [sensorId, setSensorId] = useState("AMPM18-KJ016");
@@ -363,10 +125,13 @@ export default function App() {
   const [to, setTo] = useState(22);
   const [selHour, setSelHour] = useState(null);
   const [shown, setShown] = useState({});
-  const [refresh, setRefresh] = useState(0);
+  const [dayRefresh, setDayRefresh] = useState(0);
+  const [weekdayRefresh, setWeekdayRefresh] = useState(0);
+  const [mapRefresh, setMapRefresh] = useState(0);
   const [aggregation, setAggregation] = useState(5);
   const [comparisonDate, setComparisonDate] = useState("");
   const [comparisonData, setComparisonData] = useState(null);
+  const [customDate, setCustomDate] = useState("");
   const [comparisonLoading, setComparisonLoading] = useState(false);
   const [comparisonError, setComparisonError] = useState("");
   const sensor = SENSORS.find((s) => s.id === sensorId);
@@ -378,7 +143,7 @@ export default function App() {
     error,
     loading,
     refreshing,
-  } = useDay(sensorId, date, refresh);
+  } = useDay(sensorId, date, dayRefresh);
 
   useEffect(() => {
     let cancelled = false;
@@ -617,9 +382,8 @@ export default function App() {
           </label>
         </div>
       </div>
-
-      <div className="grid">
-        <div>
+      <Dashboard
+        dayChart={
           <div className="card">
             {daily && (
               <div className="stats">
@@ -629,22 +393,28 @@ export default function App() {
                   </b>
                   <span className="muted">daily high / low</span>
                 </div>
+
                 <div>
                   <b>{fmt(daily.precipitation_mm, 1)} mm</b>
                   <span className="muted">rain that day</span>
                 </div>
+
                 <div>
                   <b style={{ fontSize: 18 }}>
-                    {daily.events?.length ? daily.events.join(", ") : (daily.summary ?? "–")}
+                    {daily.events?.length
+                      ? daily.events.join(", ")
+                      : (daily.summary ?? "–")}
                   </b>
                   <span className="muted">conditions</span>
                 </div>
               </div>
             )}
+
             <div className="bar">
               <h2 className="sec">
                 Average devices per {aggregation} minutes, by hour
               </h2>
+
               <div className="refresh">
                 {updated && (
                   <span className="muted">
@@ -657,11 +427,17 @@ export default function App() {
                     })}
                   </span>
                 )}
-                <button className="btn" onClick={() => setRefresh(refresh + 1)} disabled={busy}>
+
+                <button
+                  className="btn"
+                  onClick={() => setDayRefresh(prev => prev + 1)}
+                  disabled={busy}
+                >
                   {busy ? "Loading…" : "Refresh data"}
                 </button>
               </div>
             </div>
+
             {error ? (
               <p className="err">
                 {error.status === 404
@@ -671,63 +447,47 @@ export default function App() {
             ) : loading ? (
               <p className="muted">Loading…</p>
             ) : (
-              <>
-                <Chart
-                  range={range}
-                  series={series}
-                  rain={rain}
-                  sel={hour}
-                  onSel={setSelHour}
-                  empty={mainVals.every((v) => v == null)}
-                  tip={tip}
-                  mainLabel={`Selected day (${wd(date)}, ${dl(date).split(", ").slice(1).join(", ")})`}
-                />
-                <div className="manual-comparison">
+              <DayChart
+                key={`${sensorId}-${date}`}
+                date={date}
+                data={data}
+                comps={comps.filter((c, i) => isOn(c, i))}
+                range={range}
+                aggregation={aggregation}
+              >
+                {/* Custom comparison date controls */}
+                <div className="custom-compare">
                   <label>
-                    Compare with another date
+                    Compare with another day
+
                     <input
                       type="date"
-                      value={comparisonDate}
+                      value={customDate}
                       max={today()}
                       onChange={(e) => {
-                        setComparisonDate(e.target.value);
+                        const selectedDate = e.target.value;
+                        setCustomDate(selectedDate);
+                        setComparisonDate(selectedDate);
                       }}
                     />
                   </label>
 
-                  {comparisonDate && (
+                  {customDate && (
                     <button
                       className="btn"
                       onClick={() => {
+                        setCustomDate("");
                         setComparisonDate("");
                         setComparisonData(null);
                         setComparisonError("");
                       }}
                     >
-                      Clear comparison
+                      Clear
                     </button>
                   )}
-
-                  {comparisonLoading && (
-                    <span className="muted">Loading comparison…</span>
-                  )}
-
-                  {comparisonError && (
-                    <span className="err">{comparisonError}</span>
-                  )}
-
-                  {comparisonData && comparisonDate !== date && (
-                    <span className="muted">
-                      Comparing {dl(comparisonDate)} with {dl(date)}
-                    </span>
-                  )}
-
-                  {comparisonDate === date && comparisonDate && (
-                    <span className="muted">
-                      Choose a different date from the main day.
-                    </span>
-                  )}
                 </div>
+
+                {/* Automatically suggested comparison days */}
                 <div className="chips" aria-label="Comparison days">
                   {comps.map((c, i) => (
                     <button
@@ -735,61 +495,81 @@ export default function App() {
                       className={`chip ${isOn(c, i) ? "on" : ""}`}
                       style={{ "--c": c.color }}
                       disabled={!c.data}
-                      onClick={() => setShown({ ...shown, [c.date]: !isOn(c, i) })}
+                      onClick={() =>
+                        setShown({
+                          ...shown,
+                          [c.date]: !isOn(c, i),
+                        })
+                      }
                       title={c.data ? "" : "No data for this day"}
                     >
                       {dl(c.date)}, {c.label}
                       {c.kind && `, ${c.kind}`}
                       {wd(c.date) !== wd(date) && ", different weekday"}
-                      {c.pending ? " (loading…)" : !c.data && " (no data)"}
+                      {c.pending
+                        ? " (loading…)"
+                        : !c.data
+                          ? " (no data)"
+                          : ""}
                     </button>
                   ))}
-                  {info === undefined && <span className="muted">Finding comparison days…</span>}
+
+                  {info === undefined && (
+                    <span className="muted">
+                      Finding comparison days…
+                    </span>
+                  )}
                 </div>
-              </>
+
+                {/* Custom comparison loading/error messages */}
+                {comparisonLoading && (
+                  <p className="muted">
+                    Loading comparison data…
+                  </p>
+                )}
+
+                {comparisonError && (
+                  <p className="err">
+                    {comparisonError}
+                  </p>
+                )}
+              </DayChart>
             )}
           </div>
+        }
+
+        liveMap={
+          <LiveMap
+            sensorId={sensorId}
+            date={date}
+            from={lo}
+            to={hi}
+            refresh={mapRefresh}
+          />
+        }
+
+        weekdayProfile={
           <WeekdayProfile
             sensorId={sensorId}
             date={date}
             isClassDay={info?.is_class_day}
             from={lo}
             to={hi}
-            refresh={refresh}
+            refresh={weekdayRefresh}
+            onRefresh={() => setWeekdayRefresh(prev => prev + 1)}
             overlay={Array.from({ length: 24 }, (_, h) =>
               aggregateHour(data?.hours?.[h], aggregation)
             )}
           />
-
-        </div>
-
-        <div>
-          <div>
-            {!error && !loading && (
-              <Detail
-                hour={hour}
-                date={date}
-                day={data}
-                comps={comps.filter((c, i) => isOn(c, i))}
-                aggregation={aggregation}
-              />
-
-            )}
-          </div>
-            
-
-          <div>
-            <LiveMap 
-              sensorId={sensorId} 
-              date={date} 
-              from={lo} 
-              to={hi} 
-              refresh={refresh} 
-            />
-          </div>
-        </div>
-
-      </div>
+        }
+        weatherCrowding={
+          <WeatherCrowding
+            sensorId={sensorId}
+            from={lo}
+            to={hi}
+          />
+}
+      />
 
       <footer className="site-footer">
         <div className="footer-inner">

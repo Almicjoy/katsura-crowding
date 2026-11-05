@@ -66,7 +66,7 @@ function statsAt(days, h) {
   };
 }
 
-export default function WeekdayProfile({ sensorId, date, from, to, overlay, refresh }) {
+export default function WeekdayProfile({ sensorId, date, from, to, overlay, refresh, onRefresh, }) {
   const [weekday, setWeekday] = useState(mondayIndex(date));
   const [period, setPeriod] = useState("all");
   const [on, setOn] = useState({
@@ -76,9 +76,10 @@ export default function WeekdayProfile({ sensorId, date, from, to, overlay, refr
   });
   const [contrast, setContrast] = useState(1.5);
   const [showRange, setShowRange] = useState(true);
+  const [lastRefreshed, setLastRefreshed] = useState(null);
   const [state, setState] = useState({ loading: true });
   const [hov, setHov] = useState(null);
-  const [w, setW] = useState(640);
+  const [w, setW] = useState(1);
   const box = useRef(null);
   const seen = useRef(refresh);
 
@@ -110,6 +111,7 @@ export default function WeekdayProfile({ sensorId, date, from, to, overlay, refr
     const load = async (force) => {
       try {
         const [a, b] = await Promise.all([get("class", force), get("non_class", force)]);
+        setLastRefreshed(new Date());
         if (dead) return;
         const partial = !!(a?.partial || b?.partial);
         setState({ days: [...(a?.days ?? []), ...(b?.days ?? [])], partial });
@@ -159,12 +161,20 @@ export default function WeekdayProfile({ sensorId, date, from, to, overlay, refr
   const line = overlay && weekday === mondayIndex(date) ? hours.map((h) => overlay[h]) : null;
   const hasChart = !state.loading && !state.error && vis.length > 0;
 
+
   useEffect(() => {
     if (!hasChart || !box.current) return;
-    const ro = new ResizeObserver(([e]) => setW(Math.max(280, e.contentRect.width)));
+
+    const ro = new ResizeObserver(([entry]) => {
+      const width = Math.floor(entry.contentRect.width);
+      setW((previous) => width > 0 && width !== previous ? width : previous);
+    });
+
     ro.observe(box.current);
+
     return () => ro.disconnect();
   }, [hasChart]);
+
 
   // Chart geometry
   const H = 300,
@@ -371,65 +381,83 @@ export default function WeekdayProfile({ sensorId, date, from, to, overlay, refr
   }
 
   return (
-    <div className="card" style={{ marginTop: 16 }}>
-      <h2>Weekday patterns</h2>
-      <p className="muted" style={{ margin: "2px 0 0" }}>
-        Every past {DAYS[weekday]} on top of each other, average devices per 5 minutes by hour.
-        No-class days include holidays, breaks and weekends.
-      </p>
-
-      <div className="pcontrols">
-        <label>
-          Weekday
-          <select value={weekday} onChange={(e) => setWeekday(+e.target.value)}>
-            {DAYS.map((d, i) => (
-              <option key={d} value={i}>
-                {d}
-              </option>
-            ))}
-          </select>
-        </label>
-        <label>
-          Period
-          <select value={active} onChange={(e) => setPeriod(e.target.value)}>
-            {periods.map((p) => (
-              <option key={p.value} value={p.value}>
-                {p.label}
-              </option>
-            ))}
-          </select>
-        </label>
-        {/* <label>
-          Contrast
-          <input
-            type="range"
-            min="0.5"
-            max="4"
-            step="0.5"
-            value={contrast}
-            onChange={(e) => setContrast(+e.target.value)}
-            style={{ padding: 0 }}
-          />
-        </label> */}
-        <label style={{ flexDirection: "row", alignItems: "center", gap: 8 }}>
-          <input
-            type="checkbox"
-            checked={showRange}
-            onChange={(e) => setShowRange(e.target.checked)}
-            style={{ padding: 0 }}
-          />
-          Show quietest and busiest lines
-        </label>
+    <div className="card weekday-card" style={{ marginTop: 16 }}>
+      <div className="weekday-heading">
+        <div className="weekday-heading-title">
+          <h2>Weekday patterns</h2>
+          <p className="muted">
+            Every past {DAYS[weekday]} on top of each other, average devices per
+            5 minutes by hour. No-class days include holidays, breaks and weekends.
+          </p>
+        </div>
       </div>
 
-      <div className="chips" aria-label="Day types to show" style={{ marginBottom: 10 }}>
+      <div className="weekday-toolbar">
+        <div className="weekday-filters">
+          <label>
+            <span>Weekday</span>
+            <select value={weekday} onChange={(e) => setWeekday(+e.target.value)}>
+              {DAYS.map((d, i) => (
+                <option key={d} value={i}>
+                  {d}
+                </option>
+              ))}
+            </select>
+          </label>
+
+          <label>
+            <span>Period</span>
+            <select value={active} onChange={(e) => setPeriod(e.target.value)}>
+              {periods.map((p) => (
+                <option key={p.value} value={p.value}>
+                  {p.label}
+                </option>
+              ))}
+            </select>
+          </label>
+
+          <label className="weekday-range-toggle">
+            <input
+              type="checkbox"
+              checked={showRange}
+              onChange={(e) => setShowRange(e.target.checked)}
+            />
+            <span>Show quietest and busiest lines</span>
+          </label>
+        </div>
+
+        <div className="weekday-refresh-group">
+          {lastRefreshed && (
+            <span className="muted weekday-last-refreshed">
+              Last refreshed at{" "}
+              {lastRefreshed.toLocaleTimeString([], {
+                hour: "numeric",
+                minute: "2-digit",
+              })}
+            </span>
+          )}
+
+          <button
+            type="button"
+            onClick={onRefresh}
+            className="weekday-refresh-button"
+            title="Refresh weekday profile"
+            aria-label="Refresh weekday profile"
+          >
+            <span aria-hidden="true">↻</span>
+            Refresh Data
+          </button>
+        </div>
+      </div>
+
+      <div className="chips" aria-label="Day types to show">
         {layers.map((l) => (
           <button
             key={l.key}
             className={`chip ${l.visible ? "on" : ""}`}
             style={{ "--c": l.color }}
             disabled={!l.days.length}
-            onClick={() => setOn({ ...on, [l.key]: !on[l.key] })}
+            onClick={() => setOn({ ...on, [l.key]: !l.visible })}
             title={l.days.length ? "" : "No days of this type in this period"}
           >
             {l.label} ({l.days.length})
