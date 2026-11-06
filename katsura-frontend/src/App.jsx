@@ -1,4 +1,5 @@
 import { useEffect, useRef, useState } from "react";
+import "./AppConfig.css";
 import { CAMPUS, SENSORS } from "./config.js";
 
 import WeekdayProfile from "./WeekdayProfile.jsx";
@@ -118,7 +119,69 @@ function ordinal(n) {
 }
 
 
+function ConfigFields({ sensorId, setSensorId, aggregation, setAggregation, date, setDate, from, setFrom, to, setTo }) {
+  return (
+    <>
+        <label className="wide">
+          Sensor
+          <select value={sensorId} onChange={(e) => setSensorId(e.target.value)}>
+            {SENSORS.map((s) => (
+              <option key={s.id} value={s.id}>
+                {s.name}
+              </option>
+            ))}
+          </select>
+        </label>
+        <label>
+          Aggregation
+          <select
+            value={aggregation}
+            onChange={(e) => setAggregation(Number(e.target.value))}
+          >
+            <option value={5}>5 minutes</option>
+            <option value={15}>15 minutes</option>
+          </select>
+        </label>
+        <label className="wide">
+          Date
+          <input
+            type="date"
+            value={date}
+            max={today()}
+            onChange={(e) => e.target.value && setDate(e.target.value)}
+          />
+        </label>
+        <div className="time-range">
+          <label>
+            From
+            <select value={from} onChange={(e) => setFrom(+e.target.value)}>
+              {Array.from({ length: 24 }, (_, h) => (
+                <option key={h} value={h}>
+                  {tl(h, 0)}
+                </option>
+              ))}
+            </select>
+          </label>
+
+          <label>
+            To
+            <select value={to} onChange={(e) => setTo(+e.target.value)}>
+              {Array.from({ length: 24 }, (_, h) => (
+                <option key={h} value={h}>
+                  {tl(h, 0)}
+                </option>
+              ))}
+            </select>
+          </label>
+        </div>
+          </>
+  );
+}
+
 export default function App() {
+  const [configOpen, setConfigOpen] = useState(false);
+  const configCloseRef = useRef(null);
+  const configOpenRef = useRef(null);
   const [sensorId, setSensorId] = useState("AMPM18-KJ016");
   const [date, setDate] = useState(today());
   const [from, setFrom] = useState(6);
@@ -134,6 +197,22 @@ export default function App() {
   const [customDate, setCustomDate] = useState("");
   const [comparisonLoading, setComparisonLoading] = useState(false);
   const [comparisonError, setComparisonError] = useState("");
+  useEffect(() => {
+    if (!configOpen) return;
+    const previousOverflow = document.body.style.overflow;
+    document.body.style.overflow = "hidden";
+    configCloseRef.current?.focus();
+    const onKeyDown = (event) => {
+      if (event.key === "Escape") setConfigOpen(false);
+    };
+    window.addEventListener("keydown", onKeyDown);
+    return () => {
+      document.body.style.overflow = previousOverflow;
+      window.removeEventListener("keydown", onKeyDown);
+      configOpenRef.current?.focus();
+    };
+  }, [configOpen]);
+
   const sensor = SENSORS.find((s) => s.id === sensorId);
   const {
     data,
@@ -278,6 +357,11 @@ export default function App() {
     );
   };
 
+  const configProps = {
+    sensorId, setSensorId, aggregation, setAggregation,
+    date, setDate, from, setFrom, to, setTo,
+  };
+
   return (
     <div className="wrap">
       <header className="site-header">
@@ -295,9 +379,6 @@ export default function App() {
           <h1>Katsura Campus WiFi Times</h1>
         </div>
       </header>
-      <div className="page-subheader">
-        <Survey/>
-      </div>
 
       <div className="page-subheader">
         <p className="date">{dl(date, true)}</p>
@@ -328,60 +409,64 @@ export default function App() {
       </div>
 
 
-      <div className="controls">
-        <label className="wide">
-          Sensor
-          <select value={sensorId} onChange={(e) => setSensorId(e.target.value)}>
-            {SENSORS.map((s) => (
-              <option key={s.id} value={s.id}>
-                {s.name}
-              </option>
-            ))}
-          </select>
-        </label>
-        <label>
-          Aggregation
-          <select
-            value={aggregation}
-            onChange={(e) => setAggregation(Number(e.target.value))}
-          >
-            <option value={5}>5 minutes</option>
-            <option value={15}>15 minutes</option>
-          </select>
-        </label>
-        <label className="wide">
-          Date
-          <input
-            type="date"
-            value={date}
-            max={today()}
-            onChange={(e) => e.target.value && setDate(e.target.value)}
-          />
-        </label>
-        <div className="time-range">
-          <label>
-            From
-            <select value={from} onChange={(e) => setFrom(+e.target.value)}>
-              {Array.from({ length: 24 }, (_, h) => (
-                <option key={h} value={h}>
-                  {tl(h, 0)}
-                </option>
-              ))}
-            </select>
-          </label>
-
-          <label>
-            To
-            <select value={to} onChange={(e) => setTo(+e.target.value)}>
-              {Array.from({ length: 24 }, (_, h) => (
-                <option key={h} value={h}>
-                  {tl(h, 0)}
-                </option>
-              ))}
-            </select>
-          </label>
-        </div>
+      <div className="controls app-config-desktop">
+        <ConfigFields {...configProps} />
       </div>
+      <div className="app-config-mobile-trigger">
+        <button
+          ref={configOpenRef}
+          type="button"
+          className="btn app-config-open"
+          onClick={() => setConfigOpen(true)}
+          aria-haspopup="dialog"
+          aria-expanded={configOpen}
+        >
+          <span aria-hidden="true">⚙</span> Configure dashboard
+        </button>
+        <span className="app-config-summary">
+          {sensor?.name ?? sensorId} · {aggregation} min · {tl(lo, 0)}–{tl(hi, 0)}
+        </span>
+      </div>
+      {configOpen && (
+        <div
+          className="app-config-backdrop"
+          onMouseDown={(event) => {
+            if (event.target === event.currentTarget) setConfigOpen(false);
+          }}
+        >
+          <section
+            className="app-config-dialog"
+            role="dialog"
+            aria-modal="true"
+            aria-labelledby="app-config-title"
+          >
+            <div className="app-config-dialog-header">
+              <h2 id="app-config-title">Dashboard settings</h2>
+              <button
+                ref={configCloseRef}
+                type="button"
+                className="app-config-close"
+                aria-label="Close settings"
+                onClick={() => setConfigOpen(false)}
+              >
+                ×
+              </button>
+            </div>
+            <div className="controls app-config-dialog-fields">
+              <ConfigFields {...configProps} />
+            </div>
+            <div className="app-config-dialog-footer">
+              <button
+                type="button"
+                className="btn app-config-done"
+                onClick={() => setConfigOpen(false)}
+              >
+                Done
+              </button>
+            </div>
+          </section>
+        </div>
+      )}
       <Dashboard
         dayChart={
           <div className="card">
@@ -540,11 +625,8 @@ export default function App() {
 
         liveMap={
           <LiveMap
-            sensorId={sensorId}
-            date={date}
-            from={lo}
-            to={hi}
-            refresh={mapRefresh}
+            selectedId={sensorId}
+            onSelect={setSensorId}
           />
         }
 
@@ -570,6 +652,9 @@ export default function App() {
           />
 }
       />
+      <div className="page-subheader">
+        <Survey/>
+      </div>
 
       <footer className="site-footer">
         <div className="footer-inner">
@@ -592,6 +677,7 @@ export default function App() {
             </div>
           </div>
         </div>
+
       </footer>
 
 

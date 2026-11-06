@@ -96,7 +96,11 @@ export default function LiveMap({ selectedId, onSelect }) {
       let mk = markers.current[s.id];
       if (!mk) {
         mk = L.marker(s.loc, { icon }).addTo(m);
-        mk.on("click", () => pick.current(s.id));
+        mk.on("click", () => {
+          if (typeof pick.current === "function") {
+            pick.current(s.id);
+          }
+        });
         markers.current[s.id] = mk;
       } else mk.setIcon(icon);
       mk.setZIndexOffset(s.id === selectedId ? 1000 : 0);

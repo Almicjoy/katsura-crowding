@@ -1,0 +1,96 @@
+/* Mobile dashboard configuration */
+.app-config-mobile-trigger { display: none; }
+.app-config-backdrop { display: none; }
+
+@media (max-width: 767px) {
+  .app-config-desktop { display: none !important; }
+  .app-config-mobile-trigger {
+    display: flex;
+    flex-direction: column;
+    align-items: flex-start;
+    gap: 6px;
+    margin: 12px 0 18px;
+    min-width: 0;
+  }
+  .app-config-open { display: inline-flex; align-items: center; gap: 8px; }
+  .app-config-summary {
+    max-width: 100%;
+    font-size: .8rem;
+    color: var(--mute, #64748b);
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+  }
+  .app-config-backdrop {
+    position: fixed;
+    inset: 0;
+    z-index: 9999;
+    display: flex;
+    align-items: flex-end;
+    justify-content: center;
+    padding: 12px 12px max(12px, env(safe-area-inset-bottom));
+    background: rgba(10, 18, 30, .62);
+    box-sizing: border-box;
+  }
+  .app-config-dialog {
+    width: 100%;
+    max-width: 520px;
+    max-height: min(88dvh, 760px);
+    display: flex;
+    flex-direction: column;
+    overflow: hidden;
+    border-radius: 18px;
+    background: var(--card, #fff);
+    color: var(--ink, #16202b);
+    box-shadow: 0 18px 55px rgba(0,0,0,.25);
+  }
+  .app-config-dialog-header,
+  .app-config-dialog-footer {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 12px;
+    padding: 16px;
+    flex: 0 0 auto;
+  }
+  .app-config-dialog-header { border-bottom: 1px solid var(--line, #d8dee5); }
+  .app-config-dialog-header h2 { font-size: 1.1rem; margin: 0; }
+  .app-config-close {
+    border: 0;
+    background: transparent;
+    color: inherit;
+    font-size: 28px;
+    line-height: 1;
+    cursor: pointer;
+    padding: 0 4px;
+  }
+  .app-config-dialog-fields {
+    display: flex !important;
+    flex-direction: column;
+    gap: 14px;
+    padding: 16px;
+    overflow-y: auto;
+    min-height: 0;
+    margin: 0;
+  }
+  .app-config-dialog-fields > label,
+  .app-config-dialog-fields .time-range label { min-width: 0; width: 100%; }
+  .app-config-dialog-fields select,
+  .app-config-dialog-fields input {
+    display: block;
+    width: 100%;
+    max-width: 100%;
+    min-width: 0;
+    box-sizing: border-box;
+  }
+  .app-config-dialog-fields .time-range {
+    display: grid;
+    grid-template-columns: minmax(0, 1fr) minmax(0, 1fr);
+    gap: 12px;
+  }
+  .app-config-dialog-footer {
+    border-top: 1px solid var(--line, #d8dee5);
+    justify-content: flex-end;
+  }
+  .app-config-done { min-width: 100px; }
+}
