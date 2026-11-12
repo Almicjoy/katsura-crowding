@@ -1345,4 +1345,35 @@ body:has(dialog[open]) {
   color: var(--bg);
 }
 
+.date-row {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 10px;
+}
+
+.date-row .date {
+  margin: 0;
+}
+
+.date-row .badge {
+  font-size: 0.72rem;
+  padding: 3px 8px;
+  white-space: nowrap;
+}
+
+.date-info {
+  margin-top: 4px;
+}
+
+.date-info .sub {
+  margin: 0;
+  font-size: 0.8rem;
+  line-height: 1.5;
+}
+
+.date-detail {
+  margin-top: 2px !important;
+  opacity: 0.8;
+}
 

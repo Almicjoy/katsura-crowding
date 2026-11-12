@@ -112,14 +112,14 @@ export default function Dashboard({
 
   const widgets = [
     {
-      id: "daychart",
-      title: "Daily Crowding",
-      content: dayChart,
-    },
-    {
       id: "livemap",
       title: "Live Map",
       content: liveMap,
+    },
+    {
+      id: "daychart",
+      title: "Daily Crowding",
+      content: dayChart,
     },
     {
       id: "weekday",

@@ -119,6 +119,13 @@ export default function DayChart({
   const last = [...hours].reverse().find((h) => aggregateHour(hourData(h), interval) != null);
   const hour = hours.includes(sel) ? sel : (last ?? t0);
 
+  // Highest observed block across the selected day's displayed time range.
+  // Ignore missing blocks; retain the earliest block when values are tied.
+  const observedBars = bars.filter((b) => b.v != null && Number.isFinite(b.v));
+  const highestBlock = observedBars.length
+    ? observedBars.reduce((best, b) => b.v > best.v ? b : best)
+    : null;
+
   // The latest available slot is based on actual counts, not the wall clock.
   const latest = [...bars].reverse().find((b) => b.v != null && Number.isFinite(b.v)) ?? null;
   const sameSlot = (a, b) => a && b && a.h === b.h && a.slot === b.slot;
@@ -258,6 +265,28 @@ export default function DayChart({
             />
           ))}
 
+          {/* Highlight the highest observed block across the selected day. */}
+          {highestBlock && (() => {
+            const x = X(highestBlock.h + highestBlock.j * slotH) + 0.5 + barW * 0.18;
+            const bw = Math.max(0.4, barW * 0.64);
+            const cx = x + bw / 2;
+            const cy = Y(highestBlock.v);
+            const labelWidth = 42;
+            const labelX = Math.max(m.l + labelWidth / 2, Math.min(w - m.r - labelWidth / 2, cx));
+            const labelY = Math.max(m.t + 1, cy - 25);
+            return (
+              <g pointerEvents="none">
+                <rect x={x} y={cy} width={bw} height={Y(0) - cy}
+                  fill="none" stroke="#b7791f" strokeWidth="2.5" />
+                <circle cx={cx} cy={cy} r="4" fill="#fbbf24" stroke="#92400e" strokeWidth="1.5" />
+                <rect x={labelX - labelWidth / 2} y={labelY} width={labelWidth} height="17"
+                  rx="4" fill="#92400e" />
+                <text x={labelX} y={labelY + 12} textAnchor="middle"
+                  fontSize="10" fontWeight="700" fill="white">PEAK</text>
+              </g>
+            );
+          })()}
+
           {/* The latest available interval gets a distinct guide and marker. */}
           {latest && (() => {
             const cx = X(latest.h + (latest.j + 0.5) * slotH);
@@ -319,12 +348,13 @@ export default function DayChart({
       </div>
 
       <div className="legend">
-        <span><i className="sw barbox" style={{ background: positive }} />Above historical mean (soft red)</span>
-        <span><i className="sw barbox" style={{ background: negative }} />Below historical mean (soft blue)</span>
-        <span><i className="sw barbox" style={{ background: "var(--main)" }} />Equal / no historical data (white)</span>
+        <span><i className="sw barbox" style={{ background: positive }} />Above historical mean</span>
+        <span><i className="sw barbox" style={{ background: negative }} />Below historical mean</span>
+        <span><i className="sw barbox" style={{ background: "var(--main)" }} />Equal / no historical data</span>
         {comps.map((c) => (
           <span key={c.date}><i className="sw barbox" style={{ background: c.color, opacity: 0.45 }} />{dl(c.date)} (historical)</span>
         ))}
+        <span><i className="sw barbox" style={{ background: "#fbbf24", border: "2px solid #92400e" }} />Highest block in selected hour</span>
         <span><i className="sw barbox" style={{ background: "#0e7490" }} />Latest available interval</span>
         <span><i className="sw barbox" style={{ background: "#38bdf8" }} />Clicked interval</span>
         <span><i className="sw rainbox" />Rain, mm per hour{rainMax > 0 ? ` (tallest bar ${rainMax.toFixed(1)} mm)` : " (none)"}</span>
@@ -367,33 +397,13 @@ export default function DayChart({
                 <span className="muted">avg devices per 5 minutes</span>
               </div>
               <div>
-                <b>{Math.max(0, ...blocks)}</b>
-                <span className="muted">highest {interval}-minute block</span>
+                <b>{highestBlock ? fmt(highestBlock.v) : "–"}</b>
+                <span className="muted">highest {interval}-minute block today (selected range)</span>
               </div>
             </div>
-            {!h.complete && (
-              <p className="muted">Hour in progress: {h.slots_final} finished 5-minute period(s) so far.</p>
-            )}
           </>
         )}
 
-        {comps.length > 0 && <h2 className="sec">Same hour on comparison days</h2>}
-        {comps.map((c) => {
-          const v = aggregateHour(c.data?.hours?.[hour], interval);
-          const pct = average != null && v > 0 ? Math.round(((average - v) / v) * 100) : null;
-          return (
-            <div className="row" key={c.date}>
-              <span>
-                <i className="dot" style={{ background: c.color }} />
-                {dl(c.date)}
-                {wd(c.date) !== wd(date) && <em className="warn">different weekday</em>}
-              </span>
-              <span>
-                {fmt(v)} devices{pct != null && ` (selected day ${pct >= 0 ? "+" : ""}${pct}%)`}
-              </span>
-            </div>
-          );
-        })}
 
         {w0 && (
           <>

@@ -381,31 +381,35 @@ export default function App() {
       </header>
 
       <div className="page-subheader">
-        <p className="date">{dl(date, true)}</p>
+        <div className="date-row">
+          <p className="date">{dl(date, true)}</p>
 
-        <p className="sub">
           {kind && (
             <span className={`badge ${info?.is_class_day ? "yes" : ""}`}>
               {kind}
             </span>
           )}
-        {info
-          ? info.semester
-            ? `Semester ${info.semester}${
-                info.session != null &&
-                info.session !== "null" &&
-                info.weekday
-                  ? `, ${ordinal(info.session)} ${info.weekday}`
-                  : ""
-              }`
-            : "Outside the academic calendar"
-          : "Loading…"}
+        </div>
+
+        <div className="date-info">
+          <p className="sub">
+            {info
+              ? info.semester
+                ? `Semester ${info.semester}${
+                    info.session != null &&
+                    info.session !== "null" &&
+                    info.weekday
+                      ? `, ${ordinal(info.session)} ${info.weekday}`
+                      : ""
+                  }`
+                : "Outside the academic calendar"
+              : "Loading…"}
+          </p>
+
           {info?.detail && (
-            <div className="page-subheader">
-              <p className="sub">{info.detail}</p>
-            </div>
+            <p className="sub date-detail">{info.detail}</p>
           )}
-        </p>
+        </div>
       </div>
 
 
@@ -468,36 +472,20 @@ export default function App() {
         </div>
       )}
       <Dashboard
+
+        liveMap={
+          <LiveMap
+            selectedId={sensorId}
+            onSelect={setSensorId}
+          />
+        }
+
         dayChart={
           <div className="card">
-            {daily && (
-              <div className="stats">
-                <div>
-                  <b>
-                    {fmt(daily.high_c)} / {fmt(daily.low_c)} °C
-                  </b>
-                  <span className="muted">daily high / low</span>
-                </div>
-
-                <div>
-                  <b>{fmt(daily.precipitation_mm, 1)} mm</b>
-                  <span className="muted">rain that day</span>
-                </div>
-
-                <div>
-                  <b style={{ fontSize: 18 }}>
-                    {daily.events?.length
-                      ? daily.events.join(", ")
-                      : (daily.summary ?? "–")}
-                  </b>
-                  <span className="muted">conditions</span>
-                </div>
-              </div>
-            )}
 
             <div className="bar">
               <h2 className="sec">
-                Average devices per {aggregation} minutes, by hour
+                Device count per {aggregation} minutes
               </h2>
 
               <div className="refresh">
@@ -621,13 +609,6 @@ export default function App() {
               </DayChart>
             )}
           </div>
-        }
-
-        liveMap={
-          <LiveMap
-            selectedId={sensorId}
-            onSelect={setSensorId}
-          />
         }
 
         weekdayProfile={
